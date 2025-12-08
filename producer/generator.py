@@ -113,7 +113,7 @@ def build_producer(config: ProducerConfig) -> KafkaProducer:
 
 
 def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc).replace(microsecond=0)
 
 
 def generate_valid_event(fake: Faker, pools: DataPools) -> Dict[str, Any]:
@@ -133,7 +133,12 @@ def generate_valid_event(fake: Faker, pools: DataPools) -> Dict[str, Any]:
         page_url=f"/product/{item['item_id']}",
         referrer=random.choice(REFERRERS),  # nosec B311 - synthetic data
     )
-    return event.model_dump(mode="json")
+    record = event.model_dump(mode="json")
+    # ClickHouse DateTime는 "YYYY-MM-DD HH:MM:SS" 형태를 선호하므로 포맷 변경
+    ts = record.get("timestamp")
+    if isinstance(ts, str):
+        record["timestamp"] = ts.replace("T", " ").split("Z")[0].split("+")[0]
+    return record
 
 
 def generate_bad_payload(fake: Faker, pools: DataPools) -> JsonPayload:
@@ -238,6 +243,9 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--locale", default="en_US", help="Faker locale (default en_US)."
+    )
+    parser.add_argument(
+        "--log-eps", action="store_true", help="Log approximate EPS periodically."
     )
     return parser.parse_args(argv)
 

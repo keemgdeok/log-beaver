@@ -1,1 +1,1 @@
-# Producer package initialization.
+# Producer package marker for imports/type checking.
