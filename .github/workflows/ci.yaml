@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          if [ -f requirements-dev.txt ]; then python -m pip install -r requirements-dev.txt; fi
+          python -m pip install pre-commit pytest
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure
+
+      - name: Run tests
+        run: pytest
+
+      - name: Validate docker-compose
+        run: docker compose -f docker-compose.yaml config
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Kafka Connect image (with cache)
+        uses: docker/build-push-action@v5
+        with:
+          context: kafka/kafka-connect
+          tags: log-beaver/kafka-connect:ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=kafka-connect-ci
+          cache-to: type=gha,mode=max,scope=kafka-connect-ci
