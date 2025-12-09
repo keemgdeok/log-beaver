@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    project: log_beaver
+
+scrape_configs:
+  - job_name: log_beaver_prometheus
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  - job_name: log_beaver_kafka
+    static_configs:
+      - targets: ["kafka-jmx-exporter:5556"]
+
+  - job_name: log_beaver_kafka_connect
+    static_configs:
+      - targets: ["kafka-connect-jmx-exporter:5557"]
+
+  - job_name: log_beaver_clickhouse
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["clickhouse:9363"]
