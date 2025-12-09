@@ -1,0 +1,57 @@
+startDelaySeconds: 0
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+jmxUrl: service:jmx:rmi:///jndi/rmi://kafka-connect:9998/jmxrmi
+rules:
+  - pattern: "kafka.connect<type=task-error-metrics, connector=(.+), task=(.+)><>total-records-failed"
+    name: log_beaver_connect_task_records_failed_total
+    labels:
+      connector: "$1"
+      task: "$2"
+    type: COUNTER
+  - pattern: "kafka.connect<type=task-error-metrics, connector=(.+), task=(.+)><>deadletterqueue-produce-requests"
+    name: log_beaver_connect_dlq_produce_requests_total
+    labels:
+      connector: "$1"
+      task: "$2"
+    type: COUNTER
+  - pattern: "kafka.connect<type=task-error-metrics, connector=(.+), task=(.+)><>deadletterqueue-produce-failures"
+    name: log_beaver_connect_dlq_produce_failures_total
+    labels:
+      connector: "$1"
+      task: "$2"
+    type: COUNTER
+  - pattern: "kafka.connect<type=task-error-metrics, connector=(.+), task=(.+)><>total-retries"
+    name: log_beaver_connect_task_retries_total
+    labels:
+      connector: "$1"
+      task: "$2"
+    type: COUNTER
+  - pattern: "kafka.connect<type=sink-task-metrics, connector=(.+), task=(.+)><>put-batch-time-avg"
+    name: log_beaver_connect_sink_put_batch_time_avg_ms
+    labels:
+      connector: "$1"
+      task: "$2"
+    type: GAUGE
+  - pattern: "kafka.connect<type=sink-task-metrics, connector=(.+), task=(.+)><>sink-record-send-rate"
+    name: log_beaver_connect_sink_record_send_rate
+    labels:
+      connector: "$1"
+      task: "$2"
+    type: GAUGE
+  - pattern: "kafka.connect<type=connect-worker-metrics><>task-count"
+    name: log_beaver_connect_worker_task_count
+    type: GAUGE
+  - pattern: "kafka.connect<type=connect-worker-metrics><>connector-count"
+    name: log_beaver_connect_worker_connector_count
+    type: GAUGE
+  - pattern: "java.lang<type=Memory><HeapMemoryUsage>(.*)"
+    name: log_beaver_connect_jvm_heap_bytes
+    labels:
+      area: "$1"
+    type: GAUGE
+  - pattern: "java.lang<type=Memory><NonHeapMemoryUsage>(.*)"
+    name: log_beaver_connect_jvm_non_heap_bytes
+    labels:
+      area: "$1"
+    type: GAUGE

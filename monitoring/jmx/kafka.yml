@@ -1,0 +1,47 @@
+startDelaySeconds: 0
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+jmxUrl: service:jmx:rmi:///jndi/rmi://kafka:9999/jmxrmi
+rules:
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=MessagesInPerSec, topic=(.+)><>Count"
+    name: log_beaver_kafka_topic_messages_in_total
+    labels:
+      topic: "$1"
+    type: COUNTER
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=MessagesInPerSec><>Count"
+    name: log_beaver_kafka_broker_messages_in_total
+    type: COUNTER
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=(BytesInPerSec|BytesOutPerSec), topic=(.+)><>Count"
+    name: log_beaver_kafka_topic_bytes_total
+    labels:
+      direction: "$1"
+      topic: "$2"
+    type: COUNTER
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=(BytesInPerSec|BytesOutPerSec)><>Count"
+    name: log_beaver_kafka_broker_bytes_total
+    labels:
+      direction: "$1"
+    type: COUNTER
+  - pattern: "kafka.network<type=RequestMetrics, name=RequestQueueTimeMs, request=(.+)><>Mean"
+    name: log_beaver_kafka_request_queue_time_ms
+    labels:
+      request: "$1"
+    type: GAUGE
+  - pattern: "kafka.server<type=KafkaRequestHandlerPool, name=RequestHandlerAvgIdlePercent><>Mean"
+    name: log_beaver_kafka_request_handler_idle_ratio
+    type: GAUGE
+  - pattern: "java.lang<type=Memory><HeapMemoryUsage>(.*)"
+    name: log_beaver_jvm_heap_bytes
+    labels:
+      area: "$1"
+    type: GAUGE
+  - pattern: "java.lang<type=Memory><NonHeapMemoryUsage>(.*)"
+    name: log_beaver_jvm_non_heap_bytes
+    labels:
+      area: "$1"
+    type: GAUGE
+  - pattern: "java.lang<type=GarbageCollector, name=(.+)><>CollectionTime"
+    name: log_beaver_jvm_gc_collection_time_ms
+    labels:
+      collector: "$1"
+    type: GAUGE
