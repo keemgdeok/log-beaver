@@ -64,6 +64,9 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_LOG_RETENTION_HOURS: 168
       KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:-"-Xms512M -Xmx2G"}
+      KAFKA_JMX_PORT: 9999
+      KAFKA_JMX_HOSTNAME: kafka
+      KAFKA_OPTS: -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.local.only=false -Djava.rmi.server.hostname=kafka -Dcom.sun.management.jmxremote.rmi.port=9999
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
@@ -103,6 +106,9 @@ services:
       CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
       CONNECT_LOG4J_ROOT_LOGLEVEL: INFO
       KAFKA_HEAP_OPTS: ${CONNECT_HEAP_OPTS:-"-Xms512M -Xmx2G"}
+      KAFKA_JMX_PORT: 9998
+      KAFKA_JMX_HOSTNAME: kafka-connect
+      KAFKA_OPTS: -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.local.only=false -Djava.rmi.server.hostname=kafka-connect -Dcom.sun.management.jmxremote.rmi.port=9998
     volumes:
       - connect-data:/var/lib/kafka-connect
       - ./kafka/connectors:/etc/kafka-connect/connectors
@@ -125,9 +131,11 @@ services:
     ports:
       - "8123:8123"
       - "9000:9000"
+      - "9363:9363"
     volumes:
       - clickhouse-data:/var/lib/clickhouse
       - clickhouse-logs:/var/log/clickhouse-server
+      - ./clickhouse/config.d:/etc/clickhouse-server/config.d
       - ./clickhouse/initdb.d:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD", "bash", "-c", "clickhouse-client --query 'SELECT 1'"]
@@ -195,6 +203,67 @@ services:
     ports:
       - "8080:8080"
 
+  kafka-jmx-exporter:
+    image: bitnami/jmx-exporter:latest
+    command: ["5556", "/etc/jmx-exporter/config.yml"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./monitoring/jmx/kafka.yml:/etc/jmx-exporter/config.yml:ro
+    ports:
+      - "5556:5556"
+    networks:
+      - log-beaver
+
+  kafka-connect-jmx-exporter:
+    image: bitnami/jmx-exporter:latest
+    command: ["5557", "/etc/jmx-exporter/config.yml"]
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+    volumes:
+      - ./monitoring/jmx/kafka-connect.yml:/etc/jmx-exporter/config.yml:ro
+    ports:
+      - "5557:5557"
+    networks:
+      - log-beaver
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      kafka-jmx-exporter:
+        condition: service_started
+      kafka-connect-jmx-exporter:
+        condition: service_started
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - log-beaver
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_DEFAULT_THEME: light
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+    networks:
+      - log-beaver
+
 networks:
   log-beaver:
     driver: bridge
@@ -207,3 +276,5 @@ volumes:
   clickhouse-data:
   clickhouse-logs:
   airflow-db-data:
+  prometheus-data:
+  grafana-data:
