@@ -1,0 +1,38 @@
+version: 2
+
+sources:
+  - name: log_beaver
+    database: "{{ env_var('CLICKHOUSE_DB', 'log_beaver') }}"
+    schema: "{{ env_var('CLICKHOUSE_DB', 'log_beaver') }}"
+    description: "Kafka → ClickHouse로 적재된 원본 팻 로그"
+    tables:
+      - name: raw_user_logs
+        description: "Fat Log 원본 테이블"
+
+models:
+  - name: stg_user_logs
+    description: "타입 캐스팅 및 기본 품질 검증을 거친 사용자 행동 로그"
+    columns:
+      - name: event_id
+        tests:
+          - not_null
+          - unique
+      - name: timestamp
+        tests:
+          - not_null
+      - name: user_id
+        tests:
+          - not_null
+      - name: event_type
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['view', 'click', 'cart', 'purchase']
+      - name: device_type
+        tests:
+          - accepted_values:
+              values: ['mobile', 'desktop', 'tablet']
+      - name: user_gender
+        tests:
+          - accepted_values:
+              values: ['f', 'm']
