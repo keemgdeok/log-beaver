@@ -1,0 +1,131 @@
+{
+  "uid": "log-beaver-overview",
+  "title": "LogBeaver Monitoring",
+  "tags": ["log_beaver"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "topic",
+        "type": "query",
+        "datasource": "Prometheus",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "query": "label_values(log_beaver_kafka_topic_messages_in_total, topic)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "connector",
+        "type": "query",
+        "datasource": "Prometheus",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "query": "label_values(log_beaver_connect_task_records_failed_total, connector)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Kafka EPS by Topic",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (topic) (rate(log_beaver_kafka_topic_messages_in_total{topic=~\"$topic\"}[1m]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "eps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Kafka Bytes/s (Broker)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (direction) (rate(log_beaver_kafka_broker_bytes_total[1m]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Connect DLQ Produce (5m)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (connector, task) (increase(log_beaver_connect_dlq_produce_requests_total{connector=~\"$connector\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Connect Failed Records (5m)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (connector, task) (increase(log_beaver_connect_task_records_failed_total{connector=~\"$connector\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    }
+  ]
+}
