@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: hourly_category_sales
+    description: "시간대별 카테고리 매출 및 구매 이벤트 수"
+    columns:
+      - name: hour
+        tests: [not_null]
+      - name: item_category
+        tests: [not_null]
+  - name: daily_active_users
+    description: "일자별 활성 사용자 수(uniqExact)"
+    columns:
+      - name: event_date
+        tests: [not_null]
+  - name: conversion_funnel
+    description: "일자별 view/cart/purchase 전환율"
+    columns:
+      - name: event_date
+        tests: [not_null]
