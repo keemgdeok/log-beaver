@@ -9,14 +9,18 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-PLEASE_SET_AIRFLOW_FERNET_KEY}
     AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-PLEASE_SET_AIRFLOW_SECRET}
-    AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
+    AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.default
+    AIRFLOW__INTERNAL_API__BASE_URL: http://airflow-webserver:8080
+    AIRFLOW__INTERNAL_API__AUTH_BACKENDS: airflow.api.auth.backend.default
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    PIP_ADDITIONAL_REQUIREMENTS: ${PIP_ADDITIONAL_REQUIREMENTS:-"dbt-clickhouse==1.7.0 astronomer-cosmos==1.11.2"}
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD:-airflow}@airflow-db:5432/airflow
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs
     - ./airflow/plugins:/opt/airflow/plugins
+    - ./dbt:/opt/airflow/dbt
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     airflow-db:
@@ -171,30 +175,36 @@ services:
     command:
       - -c
       - |
-        airflow db init
-        airflow users add \
-          --username ${AIRFLOW_USERNAME:-admin} \
-          --firstname Admin \
-          --lastname User \
+        airflow db migrate && \
+        airflow users create \
           --role Admin \
-          --email ${AIRFLOW_EMAIL:-admin@example.com} \
-          --password ${AIRFLOW_PASSWORD:-admin}
+          --username "${AIRFLOW_USERNAME:-admin}" \
+          --password "${AIRFLOW_PASSWORD:-admin}" \
+          --firstname Airflow \
+          --lastname Admin \
+          --email "${AIRFLOW_EMAIL:-admin@example.com}" || true
     restart: "no"
 
   airflow-scheduler:
     <<: *airflow-common
-    command: scheduler
+    command: ["airflow", "scheduler"]
+    environment:
+      <<: *airflow-common-env
+      AIRFLOW__INTERNAL_API__BASE_URL: http://airflow-webserver:8080
+      AIRFLOW__INTERNAL_API__AUTH_BACKENDS: airflow.api.auth.backend.default
     depends_on:
       airflow-db:
         condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
-    ports:
-      - "8793:8793"
 
   airflow-webserver:
     <<: *airflow-common
-    command: webserver
+    command: ["airflow", "api-server"]
+    environment:
+      <<: *airflow-common-env
+      AIRFLOW__INTERNAL_API__BASE_URL: http://airflow-webserver:8080
+      AIRFLOW__INTERNAL_API__AUTH_BACKENDS: airflow.api.auth.backend.default
     depends_on:
       airflow-db:
         condition: service_healthy
