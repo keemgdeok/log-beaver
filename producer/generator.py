@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from faker import Faker
 from kafka import KafkaProducer  # type: ignore[attr-defined]
+from prometheus_client import Counter, Histogram, start_http_server
 
 from producer.schemas import DeviceType, EventType, LogEvent, UserGender
 
@@ -77,6 +78,8 @@ class ProducerConfig:
     log_every: int
     max_messages: Optional[int]
     log_eps: bool
+    metrics_port: int
+    metrics_host: str
 
     @classmethod
     def from_env_and_args(cls, args: argparse.Namespace) -> "ProducerConfig":
@@ -95,6 +98,8 @@ class ProducerConfig:
             log_every=int(os.getenv("PRODUCER_LOG_EVERY", "1000")),
             max_messages=args.max_messages,
             log_eps=bool(int(os.getenv("PRODUCER_LOG_EPS", "0"))) or bool(args.log_eps),
+            metrics_port=int(os.getenv("PRODUCER_METRICS_PORT", "8000")),
+            metrics_host=os.getenv("PRODUCER_METRICS_HOST", "127.0.0.1"),
         )
 
 
@@ -168,6 +173,37 @@ def _install_signal_handlers(stop_event: threading.Event) -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
 
 
+PRODUCER_MESSAGES_TOTAL = Counter(
+    "log_beaver_producer_messages_total",
+    "총 전송 메시지 수",
+    ["status"],
+)
+PRODUCER_BYTES_TOTAL = Counter(
+    "log_beaver_producer_bytes_total",
+    "전송된 페이로드 바이트 수",
+    ["topic"],
+)
+PRODUCER_SEND_LATENCY_MS = Histogram(
+    "log_beaver_producer_send_latency_ms",
+    "send()~acks까지 지연 (ms)",
+    buckets=[1, 5, 10, 25, 50, 100, 250, 500, 1000, 2000],
+)
+
+
+def _record_send_success(
+    metadata: Any, start_time: float, topic: str, payload_size: int
+) -> None:
+    elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+    PRODUCER_MESSAGES_TOTAL.labels(status="sent").inc()
+    PRODUCER_BYTES_TOTAL.labels(topic=topic).inc(payload_size)
+    PRODUCER_SEND_LATENCY_MS.observe(elapsed_ms)
+
+
+def _record_send_error(exc: BaseException) -> None:
+    PRODUCER_MESSAGES_TOTAL.labels(status="error").inc()
+    logging.error("Failed to send message (async callback)", exc_info=exc)
+
+
 def run(config: ProducerConfig, fake: Faker) -> None:
     producer = build_producer(config)
     pools = DataPools(fake)
@@ -193,16 +229,28 @@ def run(config: ProducerConfig, fake: Faker) -> None:
                 logging.info("Reached max_messages=%s, stopping.", config.max_messages)
                 break
 
-            payload = (
+            payload_obj = (
                 generate_bad_payload(fake, pools)
                 if random.random() < config.bad_ratio  # nosec B311 - synthetic data
                 else generate_valid_event(fake, pools)
             )
+            serialized = _default_serializer(payload_obj)
 
             try:
-                producer.send(config.topic, value=payload)
+                send_start = time.perf_counter()
+                future = producer.send(config.topic, value=serialized)
+                future.add_callback(
+                    lambda metadata,
+                    start=send_start,
+                    topic=config.topic,
+                    size=len(serialized): _record_send_success(  # noqa: E501
+                        metadata, start, topic, size
+                    )
+                )
+                future.add_errback(_record_send_error)
                 sent += 1
             except Exception as exc:  # noqa: BLE001
+                PRODUCER_MESSAGES_TOTAL.labels(status="error").inc()
                 logging.exception("Failed to send message: %s", exc)
 
             if sent % config.log_every == 0:
@@ -259,6 +307,13 @@ def main(argv: Optional[list[str]] = None) -> int:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
+
+    logging.info(
+        "Starting Prometheus metrics server on %s:%s",
+        config.metrics_host,
+        config.metrics_port,
+    )
+    start_http_server(config.metrics_port, addr=config.metrics_host)
 
     try:
         run(config, fake)
