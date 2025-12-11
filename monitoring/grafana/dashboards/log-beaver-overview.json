@@ -4,7 +4,7 @@
   "tags": ["log_beaver"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "time": {
     "from": "now-6h",
@@ -120,6 +120,120 @@
           "refId": "A"
         }
       ],
+      "options": {
+        "orientation": "horizontal",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Producer EPS",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(log_beaver_producer_messages_total{status=\"sent\"}[1m]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "eps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Producer Errors (5m)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "increase(log_beaver_producer_messages_total{status=\"error\"}[5m])",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Producer p95 Send Latency",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(log_beaver_producer_send_latency_ms_bucket[5m])) by (le))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Connect Sink Send Rate",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "avg by (connector, task) (log_beaver_connect_sink_record_send_rate{connector=~\"$connector\"})",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "eps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Connect Put Batch Time Avg",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "avg by (connector, task) (log_beaver_connect_sink_put_batch_time_avg_ms{connector=~\"$connector\"})",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
       "options": {
         "orientation": "horizontal",
         "colorMode": "value",
