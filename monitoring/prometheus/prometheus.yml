@@ -21,3 +21,9 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: ["clickhouse:9363"]
+
+  - job_name: log_beaver_producer
+    metrics_path: /metrics
+    static_configs:
+      # 호스트에서 실행 중인 프로듀서 메트릭 (host-gateway 해석 필요)
+      - targets: ["host.docker.internal:8000"]
